@@ -3,13 +3,17 @@
     "version": "0.0.1",
     "type": "module",
     "scripts": {
-        "dev": "nodemon --exec tsx src/index.ts"
+        "dev": "nodemon --exec tsx src/index.ts",
+        "test": "vitest run"
     },
     "dependencies": {
         "express": "^5.2.1"
     },
     "devDependencies": {
         "tsx": "^4.21.0",
-        "nodemon": "^3.1.14"
+        "nodemon": "^3.1.14",
+        "vitest": "^4.1.0",
+        "supertest": "^7.2.2",
+        "@types/supertest": "^7.2.0"
     }
 }
