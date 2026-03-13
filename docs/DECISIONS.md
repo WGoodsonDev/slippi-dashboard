@@ -1,0 +1,114 @@
+# Technical Decision Log
+
+One entry per meaningful decision. Captures what was decided, why, and what was traded off.
+Entries are added incrementally as decisions are made — not retroactively reconstructed.
+
+---
+
+## 001 — Monorepo with npm workspaces
+**Date:** March 2026
+
+**Decision:** Structure the project as an npm workspaces monorepo with `client/`, `server/`, and `shared/` packages.
+
+**Why:** `shared/` allows TypeScript types (game structures, API contracts) to be defined once and imported by both client and server. Without it, types would need to be duplicated and kept in sync manually.
+
+**Trade-off:** Adds workspace coordination overhead (e.g., running scripts across packages). Acceptable at this scale. A separate repo per package would be premature and would eliminate the shared type benefit.
+
+---
+
+## 002 — Express v5 + TypeScript on the backend
+**Date:** March 2026
+
+**Decision:** Use Express v5 with TypeScript for the server.
+
+**Why:** Express is minimal and well-understood. v5 adds native async error handling, which removes the need for wrapper utilities. TypeScript catches contract mismatches between the parsing pipeline and the database layer at compile time.
+
+**Trade-off:** Express v5 is relatively new and some ecosystem middleware hasn't caught up. Not a concern for this project's scope.
+
+---
+
+## 003 — PostgreSQL via Prisma ORM
+**Date:** March 2026
+
+**Decision:** PostgreSQL as the database, accessed through Prisma ORM.
+
+**Why:** The data is relational — games have players, players have combos, combos have hits, segments have position samples. A document database would make cross-entity queries (e.g., "all HITSTUN heatmap data across replays for Marth") awkward. Prisma provides type-safe query building and schema-as-code migrations.
+
+**Trade-off:** Prisma adds a layer between the application and SQL. Complex aggregation queries may be cleaner in raw SQL. Prisma supports `$queryRaw` as an escape hatch if needed.
+
+---
+
+## 004 — Clerk for authentication
+**Date:** March 2026
+
+**Decision:** Use Clerk for auth rather than implementing it manually.
+
+**Why:** Hand-rolled auth (session management, password hashing, token rotation) is a security liability and significant implementation time for a portfolio project. Clerk handles all of it with a well-documented Express integration.
+
+**Trade-off:** External dependency and vendor lock-in for auth. Acceptable — the `users` table stores only a `clerk_id` reference, so Clerk could be swapped out if needed by migrating that mapping.
+
+---
+
+## 005 — AWS S3 for raw .slp file storage
+**Date:** March 2026
+
+**Decision:** Store raw `.slp` replay files in S3. Store only derived data (combos, segments, samples) in PostgreSQL.
+
+**Why:** Raw `.slp` files can be tens of megabytes each. Storing binaries in Postgres is an anti-pattern — it bloats the database and makes backups expensive. S3 is designed for object storage at scale.
+
+**Trade-off:** New analysis types that require re-parsing frame data would need users to re-upload files (since the raw frames aren't stored in the DB). This is an accepted constraint for v1.
+
+---
+
+## 006 — Parse at upload time, store derived data only
+**Date:** March 2026
+
+**Decision:** Parse `.slp` files using `slippi-js` at upload time. Store only the computed results (combos, hit sequences, gamestate segments, position samples) — not raw frame data.
+
+**Why:** Raw frame data at 60fps for a full game is ~28,000 frames × 2 players × multiple fields. Storing it across hundreds of replays would make the database enormous and slow to query. The derived data is what the dashboard actually needs.
+
+**Trade-off:** Can't run new analysis types on historical replays without re-uploading. Explicitly accepted for v1.
+
+---
+
+## 007 — Position sampling at 10fps (every 6th frame)
+**Date:** March 2026
+
+**Decision:** Sample player positions every 6th frame (10fps equivalent) for heatmap data rather than storing every frame.
+
+**Why:** Full 60fps position data per player per game would grow the `position_samples` table by roughly 6× for no meaningful visual difference in a heatmap — heatmap density doesn't require per-frame precision.
+
+**Trade-off:** Fine-grained positional playback (e.g., animating movement paths) won't be possible from stored data. Not a v1 requirement.
+
+---
+
+## 008 — Gamestate enum: NEUTRAL / HITSTUN / LEDGE / OFFSTAGE / DEAD
+**Date:** March 2026
+
+**Decision:** Use five machine-detectable gamestates for v1. Gamestate is per-player (asymmetric) — every segment has a `perspective_player_id`.
+
+**Why:** These five states are directly detectable from Slippi action states without heuristics. HITSTUN, LEDGE, and DEAD have clear action state signatures. OFFSTAGE can be derived from stage position bounds. NEUTRAL is the residual state.
+
+**Trade-off:** OFFSTAGE conflates edgeguarding (offensive) and recovering (defensive) — two very different situations. Advantage/disadvantage quantification is deferred to v2. The v1 enum favors machine-detectability over conceptual accuracy.
+
+---
+
+## 009 — Prisma v7 datasource configuration via prisma.config.ts
+**Date:** March 2026
+
+**Decision:** Accept the Prisma v7 configuration model where the datasource URL lives in `prisma.config.ts` (via `dotenv`) rather than in `schema.prisma` as `url = env("DATABASE_URL")`.
+
+**Why:** This is how Prisma v7 initializes by default. It separates runtime configuration from schema definition.
+
+**Trade-off:** Differs from most tutorials and documentation online, which target Prisma v4/v5. The generated client also outputs to `src/generated/prisma/` instead of `node_modules/@prisma/client`, which changes import paths in application code. Both behaviors are non-obvious and worth documenting for future reference.
+
+---
+
+## 010 — move_id Int instead of move String on ComboHits
+**Date:** March 2026
+
+**Decision:** Store the raw `slippi-js` move ID (an integer) on `combo_hits.move_id` rather than a string move name.
+
+**Why:** `slippi-js` represents moves as numeric action state IDs. Human-readable names ("upair", "neutral-b") are an application-layer mapping, not source data. Storing a string would enforce application-layer naming conventions at the database level — the wrong layer. If naming conventions change, a schema migration would be required just to rename a label.
+
+**Trade-off:** Move names are not directly readable in the database. A lookup table or constants file in `shared/` is needed to translate IDs to display names. That mapping belongs in the parsing layer anyway.

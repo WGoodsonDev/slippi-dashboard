@@ -89,7 +89,7 @@ One row per hit within a combo. Ordered by sequence_number. Stores position and 
 | id | UUID / serial | Primary key |
 | combo_id | FK → Combos | |
 | sequence_number | integer | Preserves hit order within the combo |
-| move | string | Move that landed (attack ID or name) |
+| move_id | integer | Move that landed (attack ID or name) |
 | comboing_x | float | Comboing player x position at this hit |
 | comboing_y | float | Comboing player y position at this hit |
 | comboed_x | float | Comboed player x position at this hit |

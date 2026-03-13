@@ -1,0 +1,129 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Gamestate {
+  NEUTRAL
+  HITSTUN
+  LEDGE
+  OFFSTAGE
+  DEAD
+}
+
+model User {
+  id        String   @id @default(uuid())
+  clerkId   String   @unique @map("clerk_id")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  games Game[]
+
+  @@map("users")
+}
+
+model Game {
+  id          String   @id @default(uuid())
+  userId      String   @map("user_id")
+  stage       String
+  duration    Int
+  playedAt    DateTime @map("played_at")
+  slpFileUrl  String   @map("slp_file_url")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user               User               @relation(fields: [userId], references: [id])
+  players            GamePlayer[]
+  combos             Combo[]
+  gamestateSegments  GamestateSegment[]
+
+  @@map("games")
+}
+
+model GamePlayer {
+  id           String  @id @default(uuid())
+  gameId       String  @map("game_id")
+  isUser       Boolean @map("is_user")
+  character    String
+  port         Int
+  connectCode  String  @map("connect_code")
+  slippiRank   String? @map("slippi_rank")
+  endStocks    Int     @map("end_stocks")
+  endPercent   Float   @map("end_percent")
+
+  game                     Game               @relation(fields: [gameId], references: [id])
+  combosAsComboingPlayer   Combo[]            @relation("ComboingPlayer")
+  combosAsCombоedPlayer    Combo[]            @relation("CombоedPlayer")
+  gamestateSegments        GamestateSegment[]
+  positionSamples          PositionSample[]
+
+  @@map("game_players")
+}
+
+model Combo {
+  id                String  @id @default(uuid())
+  gameId            String  @map("game_id")
+  combоingPlayerId  String  @map("comboing_player_id")
+  combоedPlayerId   String  @map("comboed_player_id")
+  startPercent      Float   @map("start_percent")
+  endPercent        Float   @map("end_percent")
+  ledToKo           Boolean @map("led_to_ko")
+  hitCount          Int     @map("hit_count")
+
+  game            Game       @relation(fields: [gameId], references: [id])
+  combоingPlayer  GamePlayer @relation("ComboingPlayer", fields: [combоingPlayerId], references: [id])
+  combоedPlayer   GamePlayer @relation("CombоedPlayer", fields: [combоedPlayerId], references: [id])
+  hits            ComboHit[]
+
+  @@map("combos")
+}
+
+model ComboHit {
+  id                  String @id @default(uuid())
+  comboId             String @map("combo_id")
+  sequenceNumber      Int    @map("sequence_number")
+  moveId              Int    @map("move_id")
+  combоingX           Float  @map("comboing_x")
+  combоingY           Float  @map("comboing_y")
+  combоedX            Float  @map("comboed_x")
+  combоedY            Float  @map("comboed_y")
+  percentBefore       Float  @map("percent_before")
+  percentAfter        Float  @map("percent_after")
+  knockbackStrength   Float  @map("knockback_strength")
+  knockbackAngle      Float  @map("knockback_angle")
+
+  combo Combo @relation(fields: [comboId], references: [id])
+
+  @@map("combo_hits")
+}
+
+model GamestateSegment {
+  id                  String    @id @default(uuid())
+  gameId              String    @map("game_id")
+  perspectivePlayerId String    @map("perspective_player_id")
+  gamestate           Gamestate
+  startFrame          Int       @map("start_frame")
+  endFrame            Int       @map("end_frame")
+
+  game               Game             @relation(fields: [gameId], references: [id])
+  perspectivePlayer  GamePlayer       @relation(fields: [perspectivePlayerId], references: [id])
+  positionSamples    PositionSample[]
+
+  @@map("gamestate_segments")
+}
+
+model PositionSample {
+  id        String @id @default(uuid())
+  segmentId String @map("segment_id")
+  playerId  String @map("player_id")
+  x         Float
+  y         Float
+  frame     Int
+
+  segment GamestateSegment @relation(fields: [segmentId], references: [id])
+  player  GamePlayer       @relation(fields: [playerId], references: [id])
+
+  @@map("position_samples")
+}
