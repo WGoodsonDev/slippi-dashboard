@@ -55,7 +55,7 @@ model GamePlayer {
 
   game                     Game               @relation(fields: [gameId], references: [id])
   combosAsComboingPlayer   Combo[]            @relation("ComboingPlayer")
-  combosAsCombоedPlayer    Combo[]            @relation("CombоedPlayer")
+  combosAsComboedPlayer    Combo[]            @relation("ComboedPlayer")
   gamestateSegments        GamestateSegment[]
   positionSamples          PositionSample[]
 
@@ -65,16 +65,16 @@ model GamePlayer {
 model Combo {
   id                String  @id @default(uuid())
   gameId            String  @map("game_id")
-  combоingPlayerId  String  @map("comboing_player_id")
-  combоedPlayerId   String  @map("comboed_player_id")
+  comboingPlayerId  String  @map("comboing_player_id")
+  comboedPlayerId   String  @map("comboed_player_id")
   startPercent      Float   @map("start_percent")
   endPercent        Float   @map("end_percent")
   ledToKo           Boolean @map("led_to_ko")
   hitCount          Int     @map("hit_count")
 
   game            Game       @relation(fields: [gameId], references: [id])
-  combоingPlayer  GamePlayer @relation("ComboingPlayer", fields: [combоingPlayerId], references: [id])
-  combоedPlayer   GamePlayer @relation("CombоedPlayer", fields: [combоedPlayerId], references: [id])
+  comboingPlayer  GamePlayer @relation("ComboingPlayer", fields: [comboingPlayerId], references: [id])
+  comboedPlayer   GamePlayer @relation("ComboedPlayer", fields: [comboedPlayerId], references: [id])
   hits            ComboHit[]
 
   @@map("combos")
@@ -85,10 +85,10 @@ model ComboHit {
   comboId             String @map("combo_id")
   sequenceNumber      Int    @map("sequence_number")
   moveId              Int    @map("move_id")
-  combоingX           Float  @map("comboing_x")
-  combоingY           Float  @map("comboing_y")
-  combоedX            Float  @map("comboed_x")
-  combоedY            Float  @map("comboed_y")
+  comboingX           Float  @map("comboing_x")
+  comboingY           Float  @map("comboing_y")
+  comboedX            Float  @map("comboed_x")
+  comboedY            Float  @map("comboed_y")
   percentBefore       Float  @map("percent_before")
   percentAfter        Float  @map("percent_after")
   knockbackStrength   Float  @map("knockback_strength")

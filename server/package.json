@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "dev": "nodemon --exec tsx src/index.ts",
-        "test": "vitest run"
+        "test": "vitest run",
+        "migrate": "prisma migrate dev"
     },
     "dependencies": {
         "@prisma/client": "^7.5.0",
