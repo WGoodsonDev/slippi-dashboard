@@ -32,7 +32,7 @@ The goal is a deployed skeleton. No replay features. A real user can create an a
 - [x] Shared type import proven across packages
 - [x] Prisma initialized and connected to PostgreSQL
 - [x] Schema defined and first migration run
-- [ ] Clerk auth integrated — sign up, log in, log out
+- [x] Clerk auth integrated — sign up, log in, log out
 - [ ] React frontend deployed to Vercel
 - [ ] Server deployed to Railway
 - [ ] CI pipeline: push to `main` runs tests and deploys
