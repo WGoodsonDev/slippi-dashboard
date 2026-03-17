@@ -34,7 +34,7 @@ frame-level data, and the aggregation queries that power multi-replay visualizat
 - Frontend deploy: Vercel
 - Backend deploy: Railway
 
-**Deployed at:** Not yet deployed
+**Deployed at:** https://slippi-dashboard-client.vercel.app/
 
 ---
 
@@ -99,6 +99,10 @@ here; full reasoning lives in the Technical Decision Log._
 | Replay data strategy | Parse at upload time, store derived data only — not raw frame data | March 2026 |
 | Position sampling | Every 6th frame (10fps) for heatmap data — full 60fps would bloat DB | March 2026 |
 | Gamestate enum (v1) | NEUTRAL / HITSTUN / LEDGE / OFFSTAGE / DEAD — machine-detectable states | March 2026 |
+| Frontend deploy | Vercel — zero-config for Vite, deployed via CI on merge to main | March 2026 |
+| Backend deploy | Railway — Postgres provisioned as a plugin, deploys on merge to main via GitHub integration | March 2026 |
+| CI/CD | GitHub Actions — test job gates Vercel deploy; branch protection on main enforces PR workflow | March 2026 |
+| CORS | Restricted to CLIENT_URL env var in production; falls back to localhost:5173 in dev | March 2026 |
 
 ---
 
@@ -114,9 +118,8 @@ PositionSamples attach to segments, not games directly — this is what enables 
 
 ## Current Phase
 
-**Phase 1 — Foundation** (in progress)
-Monorepo scaffolded, TypeScript configured, Express + health endpoint running, Supertest
-test passing, shared type import proven. Next: Prisma init, schema migration, Clerk auth.
+**Phase 2 — Replay Ingestion** (up next)
+Phase 1 complete. Stack deployed and verified end-to-end: Vercel (client), Railway (server + Postgres), GitHub Actions CI/CD, Clerk auth, PR-based workflow with branch protection.
 
 Full phase plan in `docs/ROADMAP.md`.
 
