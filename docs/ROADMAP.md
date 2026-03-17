@@ -33,9 +33,9 @@ The goal is a deployed skeleton. No replay features. A real user can create an a
 - [x] Prisma initialized and connected to PostgreSQL
 - [x] Schema defined and first migration run
 - [x] Clerk auth integrated — sign up, log in, log out
-- [ ] React frontend deployed to Vercel
-- [ ] Server deployed to Railway
-- [ ] CI pipeline: push to `main` runs tests and deploys
+- [x] React frontend deployed to Vercel
+- [x] Server deployed to Railway
+- [x] CI pipeline: push to `main` runs tests and deploys
 
 ### Stack Established
 | Layer | Choice |
@@ -213,4 +213,4 @@ These are deliberately out of scope for v1. They represent the next layer of com
 
 ---
 
-*Last updated: Phase 1 in progress*
+*Last updated: Phase 1 complete*
