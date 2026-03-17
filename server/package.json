@@ -2,8 +2,13 @@
     "name": "@slippi-dashboard/server",
     "version": "0.0.1",
     "type": "module",
+    "engines": {
+        "node": ">=20"
+    },
     "scripts": {
         "dev": "nodemon --exec tsx src/index.ts",
+        "build": "prisma generate && tsc",
+        "start": "prisma migrate deploy && node dist/index.js",
         "test": "vitest run",
         "migrate": "prisma migrate dev"
     },

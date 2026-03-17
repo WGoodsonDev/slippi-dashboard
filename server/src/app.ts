@@ -5,8 +5,10 @@ import { usersRouter } from "./routes/users.js";
 
 const app = express();
 
-app.options("/{*path}", cors());
-app.use(cors());
+const allowedOrigin = process.env.CLIENT_URL || "http://localhost:5173";
+
+app.options("/{*path}", cors({ origin: allowedOrigin }));
+app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
 app.use(clerkMiddleware());
 
