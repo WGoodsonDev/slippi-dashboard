@@ -1,10 +1,11 @@
 import { Router, Request, Response } from "express";
-import { requireAuth, getAuth } from "@clerk/express";
+import { getAuth } from "@clerk/express";
 import { prisma } from "../lib/prisma.js";
+import { requireApiAuth } from "../lib/auth.js";
 
 const usersRouter = Router();
 
-usersRouter.post("/sync", requireAuth(), async (req: Request, res: Response) => {
+usersRouter.post("/sync", requireApiAuth, async (req: Request, res: Response) => {
     const clerkUserId = getAuth(req).userId as string;
 
     try {
