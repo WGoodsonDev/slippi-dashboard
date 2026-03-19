@@ -7,7 +7,8 @@ import type { Request, Response, NextFunction } from "express";
 
 // This test uses the real parseReplayBuffer against a committed .slp fixture.
 // Prisma and S3 are mocked — the goal is to verify that the parsing pipeline
-// produces the correct number of combos and hits, and that player IDs resolve correctly.
+// produces the correct number of combos, hits, and gamestate segments,
+// and that player IDs resolve correctly throughout.
 
 const {
     mockUserUpsert,
@@ -16,6 +17,8 @@ const {
     mockGamePlayerCreate,
     mockComboCreate,
     mockComboHitCreateMany,
+    mockGamestateSegmentCreate,
+    mockPositionSampleCreateMany,
     mockUploadReplayToS3,
 } = vi.hoisted(() => ({
     mockUserUpsert: vi.fn(),
@@ -24,6 +27,8 @@ const {
     mockGamePlayerCreate: vi.fn(),
     mockComboCreate: vi.fn(),
     mockComboHitCreateMany: vi.fn(),
+    mockGamestateSegmentCreate: vi.fn(),
+    mockPositionSampleCreateMany: vi.fn(),
     mockUploadReplayToS3: vi.fn(),
 }));
 
@@ -54,11 +59,13 @@ const FIXTURE_BUFFER = readFileSync(
     fileURLToPath(new URL("../../test/fixtures/OptimalGenerousSparrow.slp", import.meta.url)),
 );
 
-// Player data confirmed from fixture inspection:
+// Player and game data confirmed from fixture inspection:
 //   playerIndex=0  port=1  connectCode=DNTG#103
 //   playerIndex=1  port=2  connectCode=ACAB#000
+//   stageId=28 (Dream Land N64), 292 total gamestate segments, 71 combos
 const USER_CONNECT_CODE = "DNTG#103";
 const EXPECTED_COMBO_COUNT = 71;
+const EXPECTED_SEGMENT_COUNT = 292;
 
 beforeEach(() => {
     vi.clearAllMocks();
@@ -72,12 +79,16 @@ beforeEach(() => {
     }));
     mockComboCreate.mockResolvedValue({ id: "combo-uuid" });
     mockComboHitCreateMany.mockResolvedValue({ count: 1 });
+    mockGamestateSegmentCreate.mockResolvedValue({ id: "segment-uuid" });
+    mockPositionSampleCreateMany.mockResolvedValue({ count: 1 });
     mockTransaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
             game: { create: mockGameCreate },
             gamePlayer: { create: mockGamePlayerCreate },
             combo: { create: mockComboCreate },
             comboHit: { createMany: mockComboHitCreateMany },
+            gamestateSegment: { create: mockGamestateSegmentCreate },
+            positionSample: { createMany: mockPositionSampleCreateMany },
         }),
     );
     mockUploadReplayToS3.mockResolvedValue(
@@ -127,5 +138,48 @@ describe("POST /replays — combo ingestion", () => {
                 }),
             }),
         );
+    });
+});
+
+describe("POST /replays — gamestate segment ingestion", () => {
+    it("writes the correct number of gamestate segments for a known replay", async () => {
+        await supertest(app)
+            .post("/replays")
+            .set("Authorization", "Bearer test-token")
+            .field("userConnectCode", USER_CONNECT_CODE)
+            .attach("file", FIXTURE_BUFFER, "OptimalGenerousSparrow.slp")
+            .expect(201);
+
+        expect(mockGamestateSegmentCreate).toHaveBeenCalledTimes(EXPECTED_SEGMENT_COUNT);
+    });
+
+    it("produces all five gamestates across the segments", async () => {
+        await supertest(app)
+            .post("/replays")
+            .set("Authorization", "Bearer test-token")
+            .field("userConnectCode", USER_CONNECT_CODE)
+            .attach("file", FIXTURE_BUFFER, "OptimalGenerousSparrow.slp")
+            .expect(201);
+
+        const segmentGamestates = (mockGamestateSegmentCreate.mock.calls as Array<[{ data: { gamestate: string } }]>)
+            .map((call) => call[0].data.gamestate);
+
+        for (const gamestate of ["NEUTRAL", "HITSTUN", "LEDGE", "OFFSTAGE", "DEAD"]) {
+            expect(segmentGamestates).toContain(gamestate);
+        }
+    });
+
+    it("resolves perspective player ID from the created GamePlayer records", async () => {
+        await supertest(app)
+            .post("/replays")
+            .set("Authorization", "Bearer test-token")
+            .field("userConnectCode", USER_CONNECT_CODE)
+            .attach("file", FIXTURE_BUFFER, "OptimalGenerousSparrow.slp")
+            .expect(201);
+
+        // Every segment must have a perspectivePlayerId that is one of the two created player IDs
+        const validPlayerIds = new Set(["player-1-uuid", "player-2-uuid"]);
+        const allCalls = mockGamestateSegmentCreate.mock.calls as Array<[{ data: { perspectivePlayerId: string } }]>;
+        expect(allCalls.every((call) => validPlayerIds.has(call[0].data.perspectivePlayerId))).toBe(true);
     });
 });

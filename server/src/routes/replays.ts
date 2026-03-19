@@ -160,6 +160,40 @@ replaysRouter.post(
                     }),
                 );
 
+                await Promise.all(
+                    parsedData.gamestateSegments.map(async (segment) => {
+                        const perspectivePlayerId = gamePlayerIdByPort.get(segment.playerPort);
+
+                        if (!perspectivePlayerId) {
+                            throw new Error(
+                                `Could not resolve player ID for gamestate segment: port ${segment.playerPort} not found in game ${game.id}`,
+                            );
+                        }
+
+                        const createdSegment = await tx.gamestateSegment.create({
+                            data: {
+                                gameId: game.id,
+                                perspectivePlayerId,
+                                gamestate: segment.gamestate,
+                                startFrame: segment.startFrame,
+                                endFrame: segment.endFrame,
+                            },
+                        });
+
+                        if (segment.positionSamples.length > 0) {
+                            await tx.positionSample.createMany({
+                                data: segment.positionSamples.map((sample) => ({
+                                    segmentId: createdSegment.id,
+                                    playerId: perspectivePlayerId,
+                                    x: sample.x,
+                                    y: sample.y,
+                                    frame: sample.frame,
+                                })),
+                            });
+                        }
+                    }),
+                );
+
                 return game;
             });
 
