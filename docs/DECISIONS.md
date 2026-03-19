@@ -112,3 +112,40 @@ Entries are added incrementally as decisions are made — not retroactively reco
 **Why:** `slippi-js` represents moves as numeric action state IDs. Human-readable names ("upair", "neutral-b") are an application-layer mapping, not source data. Storing a string would enforce application-layer naming conventions at the database level — the wrong layer. If naming conventions change, a schema migration would be required just to rename a label.
 
 **Trade-off:** Move names are not directly readable in the database. A lookup table or constants file in `shared/` is needed to translate IDs to display names. That mapping belongs in the parsing layer anyway.
+
+---
+
+## 011 — knockback_strength and knockback_angle need to cross-reference frame data
+**Date:** March 2026
+
+**Decision:** Store 0 for `knockback_strength` and `knockback_angle` on `ComboHit` records.
+
+**Why:** These values are not exposed by slippi-js combo data directly. Accurate values would require cross-referencing raw frame data — specifically hitbox and physics state — which adds significant parsing complexity for fields that are not required by any v1 visualization. Storing 0 as a placeholder keeps the pipeline simple and the schema intact.
+
+**Trade-off:** Knockback data is unavailable for analysis until this is revisited. Any future visualization or stat that depends on these fields will require a re-parse of affected replays.
+
+**Signal that this was the wrong call:** A compelling use case for knockback data emerges in v1 or v2 — for example, visualizing kill confirm trajectories — that justifies the added parsing complexity.
+
+---
+
+## 012 — Combo percent tracking via sequential accumulation
+**Date:** March 2026
+
+**Decision:** Compute `percentBefore` and `percentAfter` on `ComboHit` records by accumulating damage sequentially across the `moves` array, starting from `combo.startPercent`. Not from frame data.
+
+**Why:** Each entry in `combo.moves` carries a `damage` field. Accumulating from `startPercent` is direct and reliable. Cross-referencing frame data for post-hit percent would require identifying the correct post-frame update after each hit — extra complexity with no meaningful accuracy benefit for the dashboard's use cases.
+
+**Trade-off:** May diverge slightly from exact in-game percent in edge cases (e.g., stale cheeseburger damage reduction in Melee). Not significant for heatmap or trajectory visualization.
+
+---
+
+## 013 — Integration test design: real parser, mocked database
+**Date:** March 2026
+
+**Decision:** Integration tests for the combo ingestion pipeline run the real `slippi-js` parser against a committed `.slp` fixture file. Prisma and S3 are mocked. Tests assert that the correct data shapes are passed to the database layer.
+
+**Why:** The parsing logic — translating slippi-js data structures into schema-aligned shapes — is the highest-risk part of the pipeline. Running it against a real file catches regressions in combo extraction, player port resolution, and hit sequencing. Mocking Prisma keeps tests fast and sidesteps test database setup in Phase 2.
+
+**Trade-off:** Tests verify that the right arguments reach Prisma, not that data persists correctly end-to-end. A test against a real database would catch Prisma schema mismatches and constraint violations. Deferred to Phase 4 hardening.
+
+**Signal that this was the wrong call:** A schema migration or Prisma model change causes a silent test pass but a runtime failure — the kind of mismatch only a real DB would catch.
