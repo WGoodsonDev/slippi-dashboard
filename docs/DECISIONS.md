@@ -149,3 +149,36 @@ Entries are added incrementally as decisions are made — not retroactively reco
 **Trade-off:** Tests verify that the right arguments reach Prisma, not that data persists correctly end-to-end. A test against a real database would catch Prisma schema mismatches and constraint violations. Deferred to Phase 4 hardening.
 
 **Signal that this was the wrong call:** A schema migration or Prisma model change causes a silent test pass but a runtime failure — the kind of mismatch only a real DB would catch.
+
+---
+
+## 014 — Gamestate classification via action state ID ranges, not hitstunFramesRemaining
+**Date:** March 2026
+
+**Decision:** Classify hitstun using slippi-js action state ID ranges (`DAMAGE_START`–`DAMAGE_END`, `DAMAGE_FALL`) rather than the `hitstunFramesRemaining` post-frame field.
+
+**Why:** `hitstunFramesRemaining` was found to be null/undefined across all frames in the fixture replay. Action state IDs are the reliable signal — slippi-js exports a `State` enum that covers the ranges needed for all five v1 gamestates (DYING, DAMAGE, CLIFF_CATCH). All gamestate classification runs off this enum.
+
+**Trade-off:** `hitstunFramesRemaining` would provide more granular control — for example, detecting the last frame of hitstun rather than waiting for an action state transition. Not required for v1 heatmap use cases.
+
+---
+
+## 015 — DAMAGE_FALL (tumble) included in HITSTUN classification
+**Date:** March 2026
+
+**Decision:** Action state 38 (`DAMAGE_FALL`, the spinning tumble state after standard hitstun ends) is classified as HITSTUN rather than NEUTRAL.
+
+**Why:** Tumble represents the same disadvantaged, uncontrollable situation as hitstun from a visualization perspective. A player in tumble is still being carried by knockback — they cannot act freely. Classifying tumble as NEUTRAL would fragment what is functionally a single disadvantage sequence into two segments.
+
+**Trade-off:** Technically, a player in tumble can DI and choose their trajectory, unlike hard hitstun. The distinction is not relevant for v1 heatmap density visualization. Could be revisited in v2 if advantage quantification requires finer granularity.
+
+---
+
+## 016 — OFFSTAGE detection via hard-coded tournament stage edge bounds
+**Date:** March 2026
+
+**Decision:** OFFSTAGE is detected by comparing absolute x-position to a hard-coded edge value per stage. Only the 6 tournament-legal Melee stages are in the lookup. Replays from non-standard stages produce no OFFSTAGE segments (those frames fall through to NEUTRAL).
+
+**Why:** slippi-js `getStageInfo()` returns only stage name and ID — no boundary data. Deriving bounds from blast zones would require additional heuristics with no accuracy advantage. Hard-coding for the 6 tournament stages covers the full target audience (competitive community replays) without a dependency or approximation.
+
+**Trade-off:** Non-tournament stages silently degrade — OFFSTAGE frames are misclassified as NEUTRAL. Acceptable given the explicit competitive scope of the project. Documented in `replayParser.ts` as a comment on the lookup table.

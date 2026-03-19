@@ -6,15 +6,44 @@ import { createRequire } from "module";
 import type * as SlippiJsTypes from "@slippi/slippi-js/node";
 
 const nodeRequire = createRequire(import.meta.url);
-const { SlippiGame, characters, stages } = nodeRequire(
+const { SlippiGame, characters, stages, State } = nodeRequire(
     "@slippi/slippi-js/node",
 ) as typeof SlippiJsTypes;
 
 const HUMAN_PLAYER_TYPE = 0;
 
+// Action state range covering all cliff/ledge states (CliffCatch through CliffJumpQuick2).
+// slippi-js only exposes CLIFF_CATCH (252) as a named constant; the upper end is derived
+// from the Melee action state table.
+const CLIFF_LEDGE_END = 263;
+
+// Stage edge x-coordinates (absolute value) for the 6 tournament-legal stages.
+// OFFSTAGE is defined as: airborne and abs(positionX) > this threshold.
+// Only tournament stages are included — replays from non-standard stages will not
+// produce OFFSTAGE segments (falling through to NEUTRAL), which is an accepted constraint.
+const STAGE_EDGE_X: Record<number, number> = {
+    2: 63.35,   // Fountain of Dreams
+    8: 56.0,    // Yoshi's Story
+    18: 87.75,  // Pokemon Stadium
+    28: 77.27,  // Dream Land N64
+    31: 68.4,   // Battlefield
+    32: 85.56,  // Final Destination
+};
+
 type SlippiGameInstance = InstanceType<typeof SlippiJsTypes.SlippiGame>;
 type FramesData = ReturnType<SlippiGameInstance["getFrames"]>;
 type GameStats = NonNullable<ReturnType<SlippiGameInstance["getStats"]>>;
+
+// Structural snapshot of the post-frame fields used for gamestate classification.
+// Defined locally rather than importing the full slippi-js type to avoid coupling
+// to the library's internal type structure.
+interface PostFrameSnapshot {
+    actionStateId: number | null | undefined;
+    positionX: number | null | undefined;
+    isAirborne: boolean | null | undefined;
+}
+
+type GamestateValue = "NEUTRAL" | "HITSTUN" | "LEDGE" | "OFFSTAGE" | "DEAD";
 
 interface ParsedPlayer {
     port: number;
@@ -46,12 +75,27 @@ interface ParsedCombo {
     hits: ParsedComboHit[];
 }
 
+interface ParsedPositionSample {
+    x: number;
+    y: number;
+    frame: number;
+}
+
+interface ParsedGamestateSegment {
+    playerPort: number;
+    gamestate: GamestateValue;
+    startFrame: number;
+    endFrame: number;
+    positionSamples: ParsedPositionSample[];
+}
+
 interface ParsedReplayData {
     stage: string;
     duration: number;
     playedAt: Date;
     players: ParsedPlayer[];
     combos: ParsedCombo[];
+    gamestateSegments: ParsedGamestateSegment[];
 }
 
 function resolvePlayerPosition(
@@ -64,6 +108,112 @@ function resolvePlayerPosition(
         x: playerFrameData?.post.positionX ?? 0,
         y: playerFrameData?.post.positionY ?? 0,
     };
+}
+
+// Classifies a single frame for one player into one of the five v1 gamestates.
+// Priority: DEAD > HITSTUN > LEDGE > OFFSTAGE > NEUTRAL. A player being hit
+// offstage stays in HITSTUN, not OFFSTAGE — the priority order enforces this.
+function classifyGamestate(
+    post: PostFrameSnapshot,
+    stageEdgeX: number | undefined,
+): GamestateValue {
+    const { actionStateId, positionX, isAirborne } = post;
+
+    if (typeof actionStateId !== "number") {
+        return "NEUTRAL";
+    }
+
+    if (actionStateId >= State.DYING_START && actionStateId <= State.DYING_END) {
+        return "DEAD";
+    }
+
+    if (
+        actionStateId === State.DAMAGE_FALL ||
+        (actionStateId >= State.DAMAGE_START && actionStateId <= State.DAMAGE_END)
+    ) {
+        return "HITSTUN";
+    }
+
+    if (actionStateId >= State.CLIFF_CATCH && actionStateId <= CLIFF_LEDGE_END) {
+        return "LEDGE";
+    }
+
+    if (
+        stageEdgeX !== undefined &&
+        isAirborne === true &&
+        typeof positionX === "number" &&
+        Math.abs(positionX) > stageEdgeX
+    ) {
+        return "OFFSTAGE";
+    }
+
+    return "NEUTRAL";
+}
+
+// Iterates all game frames (frame >= 0) for each player, emitting a segment
+// whenever the gamestate changes. Position is sampled every 6th frame within
+// each active segment. The final open segment is closed at the last frame.
+function buildGamestateSegments(
+    frames: FramesData,
+    humanPlayers: SlippiJsTypes.PlayerType[],
+    stageId: number,
+): ParsedGamestateSegment[] {
+    const stageEdgeX = STAGE_EDGE_X[stageId];
+    const segments: ParsedGamestateSegment[] = [];
+
+    const gameFrameNumbers = Object.keys(frames)
+        .map(Number)
+        .filter((frame) => frame >= 0)
+        .sort((a, b) => a - b);
+
+    for (const player of humanPlayers) {
+        let currentGamestate: GamestateValue | null = null;
+        let currentStartFrame = 0;
+        let currentSamples: ParsedPositionSample[] = [];
+
+        for (const frameNumber of gameFrameNumbers) {
+            const playerFrameData = frames[frameNumber]?.players[player.playerIndex];
+            if (!playerFrameData) continue;
+
+            const gamestate = classifyGamestate(playerFrameData.post, stageEdgeX);
+
+            if (gamestate !== currentGamestate) {
+                if (currentGamestate !== null) {
+                    segments.push({
+                        playerPort: player.port,
+                        gamestate: currentGamestate,
+                        startFrame: currentStartFrame,
+                        endFrame: frameNumber - 1,
+                        positionSamples: currentSamples,
+                    });
+                }
+                currentGamestate = gamestate;
+                currentStartFrame = frameNumber;
+                currentSamples = [];
+            }
+
+            if (frameNumber % 6 === 0) {
+                currentSamples.push({
+                    x: playerFrameData.post.positionX ?? 0,
+                    y: playerFrameData.post.positionY ?? 0,
+                    frame: frameNumber,
+                });
+            }
+        }
+
+        // Close the final open segment
+        if (currentGamestate !== null && gameFrameNumbers.length > 0) {
+            segments.push({
+                playerPort: player.port,
+                gamestate: currentGamestate,
+                startFrame: currentStartFrame,
+                endFrame: gameFrameNumbers[gameFrameNumbers.length - 1],
+                positionSamples: currentSamples,
+            });
+        }
+    }
+
+    return segments;
 }
 
 function buildParsedCombos(
@@ -197,6 +347,7 @@ function parseReplayBuffer(fileBuffer: Buffer): ParsedReplayData {
         humanPlayers.map((player) => [player.playerIndex, player.port]),
     );
     const combos = buildParsedCombos(stats, frames, playerPortByIndex);
+    const gamestateSegments = buildGamestateSegments(frames, humanPlayers, settings.stageId);
 
     return {
         stage,
@@ -204,8 +355,16 @@ function parseReplayBuffer(fileBuffer: Buffer): ParsedReplayData {
         playedAt,
         players: parsedPlayers,
         combos,
+        gamestateSegments,
     };
 }
 
-export type { ParsedReplayData, ParsedPlayer, ParsedCombo, ParsedComboHit };
+export type {
+    ParsedReplayData,
+    ParsedPlayer,
+    ParsedCombo,
+    ParsedComboHit,
+    ParsedGamestateSegment,
+    ParsedPositionSample,
+};
 export { parseReplayBuffer };

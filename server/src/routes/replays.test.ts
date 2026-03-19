@@ -10,6 +10,8 @@ const {
     mockGamePlayerCreate,
     mockComboCreate,
     mockComboHitCreateMany,
+    mockGamestateSegmentCreate,
+    mockPositionSampleCreateMany,
     mockUploadReplayToS3,
     mockParseReplayBuffer,
 } = vi.hoisted(() => ({
@@ -19,6 +21,8 @@ const {
     mockGamePlayerCreate: vi.fn(),
     mockComboCreate: vi.fn(),
     mockComboHitCreateMany: vi.fn(),
+    mockGamestateSegmentCreate: vi.fn(),
+    mockPositionSampleCreateMany: vi.fn(),
     mockUploadReplayToS3: vi.fn(),
     mockParseReplayBuffer: vi.fn(),
 }));
@@ -61,6 +65,7 @@ const DEFAULT_PARSED_REPLAY = {
         { port: 2, characterName: "Falco", connectCode: "OPPE#123", endStocks: 0, endPercent: 134.2 },
     ],
     combos: [],
+    gamestateSegments: [],
 };
 
 beforeEach(() => {
@@ -71,12 +76,16 @@ beforeEach(() => {
     mockGamePlayerCreate.mockResolvedValue({ id: "player-uuid", port: 1 });
     mockComboCreate.mockResolvedValue({ id: "combo-uuid" });
     mockComboHitCreateMany.mockResolvedValue({ count: 0 });
+    mockGamestateSegmentCreate.mockResolvedValue({ id: "segment-uuid" });
+    mockPositionSampleCreateMany.mockResolvedValue({ count: 0 });
     mockTransaction.mockImplementation(async (callback: (tx: unknown) => Promise<unknown>) =>
         callback({
             game: { create: mockGameCreate },
             gamePlayer: { create: mockGamePlayerCreate },
             combo: { create: mockComboCreate },
             comboHit: { createMany: mockComboHitCreateMany },
+            gamestateSegment: { create: mockGamestateSegmentCreate },
+            positionSample: { createMany: mockPositionSampleCreateMany },
         }),
     );
     mockUploadReplayToS3.mockResolvedValue(

@@ -108,6 +108,9 @@ here; full reasoning lives in the Technical Decision Log._
 | CI/CD | GitHub Actions — test job gates Vercel deploy; branch protection on main enforces PR workflow | March 2026 |
 | Combo percent tracking | Sequential accumulation from moves array at parse time — not cross-referenced from frame data | March 2026 |
 | Integration test approach | Real slippi-js parser + committed .slp fixture + mocked Prisma — real test DB deferred to Phase 4 | March 2026 |
+| Gamestate detection method | Action state ID ranges via slippi-js State enum — hitstunFramesRemaining is unreliable (null in practice) | March 2026 |
+| HITSTUN scope | Includes DAMAGE_FALL (tumble, id 38) — uncontrollable knockback state, same disadvantage context as hitstun | March 2026 |
+| OFFSTAGE detection | Hard-coded edge bounds for 6 tournament stages — non-tournament stages degrade to NEUTRAL (accepted constraint) | March 2026 |
 | CORS | Restricted to CLIENT_URL env var in production; falls back to localhost:5173 in dev | March 2026 |
 
 ---
