@@ -2,6 +2,7 @@ import express, { Request, Response } from "express";
 import cors from "cors";
 import { clerkMiddleware } from "@clerk/express";
 import { usersRouter } from "./routes/users.js";
+import { replaysRouter } from "./routes/replays.js";
 
 const app = express();
 
@@ -17,5 +18,6 @@ app.get("/health", (req: Request, res: Response) => {
 });
 
 app.use("/users", usersRouter);
+app.use("/replays", replaysRouter);
 
 export { app };

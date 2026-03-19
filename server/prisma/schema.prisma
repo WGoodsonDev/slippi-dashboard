@@ -48,7 +48,7 @@ model GamePlayer {
   isUser       Boolean @map("is_user")
   character    String
   port         Int
-  connectCode  String  @map("connect_code")
+  connectCode  String? @map("connect_code")
   slippiRank   String? @map("slippi_rank")
   endStocks    Int     @map("end_stocks")
   endPercent   Float   @map("end_percent")
