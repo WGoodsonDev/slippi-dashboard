@@ -51,6 +51,8 @@ help implement, review, and push back. Specifically:
   recommendation. I want to make the decision, not just receive it.
 - If I'm about to do something I'll regret (tight coupling, missing error handling,
   a shortcut that breaks under load), flag it.
+- Always provide the context of a code change before asking me to approve it. Justify to me
+  what makes each change appropriate for the project.
 
 **Hard rule: if I can't explain it line by line, we don't ship it.** If you write
 something I don't fully understand, stop and explain it before we move on.
@@ -68,6 +70,8 @@ These are non-negotiable for this project. Push back if I'm cutting corners on a
 - **Tests:** Key paths covered. Not exhaustive, but the happy path and primary failure
   modes have tests.
 - **No dead code:** Don't leave commented-out code or unused functions. Delete them.
+- **Professional-quality code:** My goal is to break back into the industry by showcasing
+  professional work that will hold up to scrutiny. Double-check implementations for current patterns that are idiomatic in the industry today.
 
 ---
 
@@ -102,6 +106,8 @@ here; full reasoning lives in the Technical Decision Log._
 | Frontend deploy | Vercel — zero-config for Vite, deployed via CI on merge to main | March 2026 |
 | Backend deploy | Railway — Postgres provisioned as a plugin, deploys on merge to main via GitHub integration | March 2026 |
 | CI/CD | GitHub Actions — test job gates Vercel deploy; branch protection on main enforces PR workflow | March 2026 |
+| Combo percent tracking | Sequential accumulation from moves array at parse time — not cross-referenced from frame data | March 2026 |
+| Integration test approach | Real slippi-js parser + committed .slp fixture + mocked Prisma — real test DB deferred to Phase 4 | March 2026 |
 | CORS | Restricted to CLIENT_URL env var in production; falls back to localhost:5173 in dev | March 2026 |
 
 ---

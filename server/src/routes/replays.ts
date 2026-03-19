@@ -99,7 +99,7 @@ replaysRouter.post(
                     },
                 });
 
-                await Promise.all(
+                const gamePlayers = await Promise.all(
                     parsedData.players.map((player) =>
                         tx.gamePlayer.create({
                             data: {
@@ -113,6 +113,51 @@ replaysRouter.post(
                             },
                         }),
                     ),
+                );
+
+                const gamePlayerIdByPort = new Map(
+                    gamePlayers.map((gamePlayer) => [gamePlayer.port, gamePlayer.id]),
+                );
+
+                await Promise.all(
+                    parsedData.combos.map(async (combo) => {
+                        const comboingPlayerId = gamePlayerIdByPort.get(combo.comboingPlayerPort);
+                        const comboedPlayerId = gamePlayerIdByPort.get(combo.comboedPlayerPort);
+
+                        if (!comboingPlayerId || !comboedPlayerId) {
+                            throw new Error(
+                                `Could not resolve player IDs for combo: ports ${combo.comboingPlayerPort} and ${combo.comboedPlayerPort} not found in game ${game.id}`,
+                            );
+                        }
+
+                        const createdCombo = await tx.combo.create({
+                            data: {
+                                gameId: game.id,
+                                comboingPlayerId,
+                                comboedPlayerId,
+                                startPercent: combo.startPercent,
+                                endPercent: combo.endPercent,
+                                ledToKo: combo.ledToKo,
+                                hitCount: combo.hits.length,
+                            },
+                        });
+
+                        await tx.comboHit.createMany({
+                            data: combo.hits.map((hit) => ({
+                                comboId: createdCombo.id,
+                                sequenceNumber: hit.sequenceNumber,
+                                moveId: hit.moveId,
+                                comboingX: hit.comboingX,
+                                comboingY: hit.comboingY,
+                                comboedX: hit.comboedX,
+                                comboedY: hit.comboedY,
+                                percentBefore: hit.percentBefore,
+                                percentAfter: hit.percentAfter,
+                                knockbackStrength: hit.knockbackStrength,
+                                knockbackAngle: hit.knockbackAngle,
+                            })),
+                        });
+                    }),
                 );
 
                 return game;

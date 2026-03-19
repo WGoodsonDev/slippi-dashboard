@@ -90,8 +90,8 @@ S3 URL + game record linked in DB
 ```
 
 ### Checklist
-- [ ] S3 bucket configured, file upload endpoint working
-- [ ] slippi-js installed and parsing pipeline functional
+- [x] S3 bucket configured, file upload endpoint working
+- [x] slippi-js installed and parsing pipeline functional
 - [ ] Gamestate detection logic implemented (v1 rules)
 - [ ] Full Prisma schema migrated and seeded with test data
 - [ ] API endpoints: `POST /replays`, `GET /replays`
@@ -213,4 +213,4 @@ These are deliberately out of scope for v1. They represent the next layer of com
 
 ---
 
-*Last updated: Phase 1 complete*
+*Last updated: Phase 2 in progress — combo detection and storage complete (Session 2)*

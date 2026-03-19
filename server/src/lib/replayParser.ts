@@ -12,6 +12,10 @@ const { SlippiGame, characters, stages } = nodeRequire(
 
 const HUMAN_PLAYER_TYPE = 0;
 
+type SlippiGameInstance = InstanceType<typeof SlippiJsTypes.SlippiGame>;
+type FramesData = ReturnType<SlippiGameInstance["getFrames"]>;
+type GameStats = NonNullable<ReturnType<SlippiGameInstance["getStats"]>>;
+
 interface ParsedPlayer {
     port: number;
     characterName: string;
@@ -20,11 +24,109 @@ interface ParsedPlayer {
     endPercent: number;
 }
 
+interface ParsedComboHit {
+    sequenceNumber: number;
+    moveId: number;
+    comboingX: number;
+    comboingY: number;
+    comboedX: number;
+    comboedY: number;
+    percentBefore: number;
+    percentAfter: number;
+    knockbackStrength: number;
+    knockbackAngle: number;
+}
+
+interface ParsedCombo {
+    comboingPlayerPort: number;
+    comboedPlayerPort: number;
+    startPercent: number;
+    endPercent: number;
+    ledToKo: boolean;
+    hits: ParsedComboHit[];
+}
+
 interface ParsedReplayData {
     stage: string;
     duration: number;
     playedAt: Date;
     players: ParsedPlayer[];
+    combos: ParsedCombo[];
+}
+
+function resolvePlayerPosition(
+    frames: FramesData,
+    frameNumber: number,
+    playerIndex: number,
+): { x: number; y: number } {
+    const playerFrameData = frames[frameNumber]?.players[playerIndex];
+    return {
+        x: playerFrameData?.post.positionX ?? 0,
+        y: playerFrameData?.post.positionY ?? 0,
+    };
+}
+
+function buildParsedCombos(
+    stats: GameStats,
+    frames: FramesData,
+    playerPortByIndex: Map<number, number>,
+): ParsedCombo[] {
+    const parsedCombos: ParsedCombo[] = [];
+
+    for (const combo of stats.combos) {
+        if (combo.lastHitBy === null || combo.lastHitBy === undefined) {
+            continue;
+        }
+
+        const comboingPlayerPort = playerPortByIndex.get(combo.lastHitBy);
+        const comboedPlayerPort = playerPortByIndex.get(combo.playerIndex);
+
+        if (comboingPlayerPort === undefined || comboedPlayerPort === undefined) {
+            continue;
+        }
+
+        let runningPercent = combo.startPercent;
+        const hits: ParsedComboHit[] = combo.moves.map((move, index) => {
+            const percentBefore = runningPercent;
+            const percentAfter = runningPercent + move.damage;
+            runningPercent = percentAfter;
+
+            const comboingPosition = resolvePlayerPosition(
+                frames,
+                move.frame,
+                combo.lastHitBy as number,
+            );
+            const comboedPosition = resolvePlayerPosition(
+                frames,
+                move.frame,
+                combo.playerIndex,
+            );
+
+            return {
+                sequenceNumber: index,
+                moveId: move.moveId,
+                comboingX: comboingPosition.x,
+                comboingY: comboingPosition.y,
+                comboedX: comboedPosition.x,
+                comboedY: comboedPosition.y,
+                percentBefore,
+                percentAfter,
+                knockbackStrength: 0,
+                knockbackAngle: 0,
+            };
+        });
+
+        parsedCombos.push({
+            comboingPlayerPort,
+            comboedPlayerPort,
+            startPercent: combo.startPercent,
+            endPercent: combo.endPercent ?? runningPercent,
+            ledToKo: combo.didKill ?? false,
+            hits,
+        });
+    }
+
+    return parsedCombos;
 }
 
 function parseReplayBuffer(fileBuffer: Buffer): ParsedReplayData {
@@ -41,6 +143,7 @@ function parseReplayBuffer(fileBuffer: Buffer): ParsedReplayData {
     }
 
     const metadata = game.getMetadata();
+    const frames = game.getFrames();
 
     if (settings.stageId === undefined) {
         throw new Error("Replay file is missing stage data");
@@ -90,13 +193,19 @@ function parseReplayBuffer(fileBuffer: Buffer): ParsedReplayData {
         };
     });
 
+    const playerPortByIndex = new Map(
+        humanPlayers.map((player) => [player.playerIndex, player.port]),
+    );
+    const combos = buildParsedCombos(stats, frames, playerPortByIndex);
+
     return {
         stage,
         duration,
         playedAt,
         players: parsedPlayers,
+        combos,
     };
 }
 
-export type { ParsedReplayData, ParsedPlayer };
+export type { ParsedReplayData, ParsedPlayer, ParsedCombo, ParsedComboHit };
 export { parseReplayBuffer };
