@@ -1,14 +1,7 @@
 # CLAUDE.md
 
-## Who I Am
-
-Software engineer returning to the industry after a ~2 year gap (left February 2024).
-Targeting mid-level SWE roles. Running a structured re-entry plan; this project is a
-portfolio piece intended to demonstrate real technical depth, not just working code.
-
-**Primary language:** JavaScript/TypeScript  
-**Prior experience:** 2 years frontend/middleware at NASA Ames Research Center (https://www.nasa.gov/intelligent-systems-division/collaborative-and-assistant-systems/enterprise-information-management-group/)  
-**Current gaps I'm actively closing:** distributed systems, system design, cloud-native patterns
+## Working Preferences
+See `~/.claude/CLAUDE.md` for collaboration style, code standards, and git workflow.
 
 ---
 
@@ -38,53 +31,36 @@ frame-level data, and the aggregation queries that power multi-replay visualizat
 
 ---
 
-## How We Work Together
+## Commands
 
-You are a **production collaborator**, not an answer machine. I drive architecture; you
-help implement, review, and push back. Specifically:
+### Root (run from project root)
+```
+npm run dev          # start client + server concurrently (Vite :5173, nodemon :PORT)
+npm run test         # run all workspace tests
+```
 
-- I design first. Don't propose major architectural changes without me asking. Ask
-  questions that surface trade-offs instead.
-- If my approach has a real problem, say so directly. Don't hint. Don't soften it
-  to the point where I might miss it.
-- When I ask "how should I do X," give me the options and trade-offs before a
-  recommendation. I want to make the decision, not just receive it.
-- If I'm about to do something I'll regret (tight coupling, missing error handling,
-  a shortcut that breaks under load), flag it.
-- Always provide the context of a code change before asking me to approve it. Justify to me
-  what makes each change appropriate for the project.
+### Client
+```
+npm run dev --workspace=client      # Vite dev server only
+npm run build --workspace=client    # tsc + vite build
+npm run lint --workspace=client     # ESLint
+npm run preview --workspace=client  # preview production build locally
+```
 
-**Hard rule: if I can't explain it line by line, we don't ship it.** If you write
-something I don't fully understand, stop and explain it before we move on.
+### Server
+```
+npm run dev --workspace=server      # nodemon + tsx (hot reload)
+npm run build --workspace=server    # prisma generate + tsc
+npm run start --workspace=server    # production start (migrate deploy + node dist/)
+npm run test --workspace=server     # vitest run
+npm run migrate --workspace=server  # prisma migrate dev (create + apply migration)
+```
 
----
-
-## Code Standards
-
-These are non-negotiable for this project. Push back if I'm cutting corners on any of them.
-
-- **Error handling:** All failure paths handled explicitly. No silent failures.
-- **Naming:** Names communicate intent. No abbreviations, no generic names (`data`, `result`, `temp`).
-- **Functions:** Single responsibility. If a function needs a comment to explain what
-  it does, it needs a better name or needs to be split.
-- **Tests:** Key paths covered. Not exhaustive, but the happy path and primary failure
-  modes have tests.
-- **No dead code:** Don't leave commented-out code or unused functions. Delete them.
-- **Professional-quality code:** My goal is to break back into the industry by showcasing
-  professional work that will hold up to scrutiny. Double-check implementations for current patterns that are idiomatic in the industry today.
-
----
-
-## Project Requirements (Non-Negotiable)
-
-This project must have before it's considered done:
-
-- [ ] README with architectural rationale — not just setup instructions
-- [ ] Technical Decision Log — one entry per meaningful decision, built incrementally
-- [ ] Deployed and publicly accessible
-- [ ] CI/CD pipeline (GitHub Actions is fine)
-- [ ] Tests covering key paths
-- [ ] Problem statement legible within 30 seconds of reading the README
+### Database (run from server/)
+```
+cd server && npx prisma studio      # open Prisma GUI
+cd server && npx prisma db push     # push schema without migration file (dev only)
+```
 
 ---
 
@@ -125,20 +101,5 @@ PositionSamples attach to segments, not games directly — this is what enables 
 
 ---
 
-## Current Phase
-
-**Phase 2 — Replay Ingestion** (up next)
-Phase 1 complete. Stack deployed and verified end-to-end: Vercel (client), Railway (server + Postgres), GitHub Actions CI/CD, Clerk auth, PR-based workflow with branch protection.
-
-Full phase plan in `docs/ROADMAP.md`.
-
----
-
-## What Not to Do
-
-- Don't optimize prematurely. Flag performance concerns, but don't refactor for
-  performance until there's a reason to.
-- Don't add dependencies without flagging them. Every dependency is a trade-off.
-- Don't write code I haven't reviewed. If I go quiet, pause and check in.
-- Don't generate tests as an afterthought. Tests shape design — raise testing
-  considerations during implementation, not after.
+## Current Status
+See `STATUS.md` for active phase and requirements checklist.
