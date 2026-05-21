@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from "express";
 import { getAuth } from "@clerk/express";
 import { requireApiAuth } from "../lib/auth.js";
 import multer from "multer";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { prisma } from "../lib/prisma.js";
 import { uploadReplayToS3 } from "../lib/s3.js";
 import { parseReplayBuffer } from "../lib/replayParser.js";
@@ -54,6 +54,7 @@ replaysRouter.post(
         const normalizedUserConnectCode = userConnectCode.toUpperCase();
 
         const clerkUserId = getAuth(req).userId as string;
+        const slpHash = createHash("sha256").update(req.file.buffer).digest("hex");
 
         try {
             const dbUser = await prisma.user.upsert({
@@ -61,6 +62,18 @@ replaysRouter.post(
                 create: { clerkId: clerkUserId },
                 update: {},
             });
+
+            const existingGame = await prisma.game.findUnique({
+                where: { userId_slpHash: { userId: dbUser.id, slpHash } },
+            });
+
+            if (existingGame) {
+                res.status(409).json({
+                    error: "This replay has already been uploaded",
+                    gameId: existingGame.id,
+                });
+                return;
+            }
 
             const s3Key = `replays/${dbUser.id}/${randomUUID()}.slp`;
             const slpFileUrl = await uploadReplayToS3(req.file.buffer, s3Key);
@@ -96,6 +109,7 @@ replaysRouter.post(
                         duration: parsedData.duration,
                         playedAt: parsedData.playedAt,
                         slpFileUrl,
+                        slpHash,
                     },
                 });
 
@@ -216,7 +230,47 @@ replaysRouter.post(
     },
 );
 
-replaysRouter.use((err: unknown, req: Request, res: Response, next: NextFunction) => {
+replaysRouter.get("/", requireApiAuth, async (req: Request, res: Response) => {
+    const clerkUserId = getAuth(req).userId as string;
+
+    try {
+        const dbUser = await prisma.user.findUnique({
+            where: { clerkId: clerkUserId },
+        });
+
+        if (!dbUser) {
+            res.status(200).json([]);
+            return;
+        }
+
+        const games = await prisma.game.findMany({
+            where: { userId: dbUser.id },
+            include: { players: true },
+            orderBy: { playedAt: "desc" },
+        });
+
+        res.status(200).json(
+            games.map((game) => ({
+                id: game.id,
+                stage: game.stage,
+                duration: game.duration,
+                playedAt: game.playedAt,
+                players: game.players.map((player) => ({
+                    character: player.character,
+                    connectCode: player.connectCode,
+                    isUser: player.isUser,
+                    endStocks: player.endStocks,
+                    endPercent: player.endPercent,
+                })),
+            })),
+        );
+    } catch (error) {
+        console.error("Failed to fetch replays:", error);
+        res.status(500).json({ error: "Failed to fetch replays" });
+    }
+});
+
+replaysRouter.use((err: unknown, _req: Request, res: Response, next: NextFunction) => {
     if (err instanceof multer.MulterError && err.code === "LIMIT_FILE_SIZE") {
         res.status(413).json({ error: "File exceeds the 50MB size limit" });
         return;
