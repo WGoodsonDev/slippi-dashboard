@@ -9,6 +9,7 @@
         "dev": "nodemon --exec tsx src/index.ts",
         "build": "prisma generate && tsc",
         "start": "prisma migrate deploy && node dist/index.js",
+        "pretest": "prisma generate",
         "test": "vitest run",
         "migrate": "prisma migrate dev"
     },
