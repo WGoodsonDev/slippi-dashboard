@@ -4,3 +4,5 @@ node_modules/
 dist/
 server/src/generated/prisma
 memory/
+.devswarm-temp/
+CLAUDE.local.md
