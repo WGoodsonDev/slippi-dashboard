@@ -23,12 +23,14 @@ model Game {
   duration          Int
   playedAt          DateTime           @map("played_at")
   slpFileUrl        String             @map("slp_file_url")
+  slpHash           String             @map("slp_hash")
   createdAt         DateTime           @default(now()) @map("created_at")
   combos            Combo[]
   players           GamePlayer[]
   user              User               @relation(fields: [userId], references: [id])
   gamestateSegments GamestateSegment[]
 
+  @@unique([userId, slpHash])
   @@map("games")
 }
 

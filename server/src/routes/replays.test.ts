@@ -5,6 +5,9 @@ import type { Request, Response, NextFunction } from "express";
 
 const {
     mockUserUpsert,
+    mockUserFindUnique,
+    mockGameFindUnique,
+    mockGameFindMany,
     mockTransaction,
     mockGameCreate,
     mockGamePlayerCreate,
@@ -16,6 +19,9 @@ const {
     mockParseReplayBuffer,
 } = vi.hoisted(() => ({
     mockUserUpsert: vi.fn(),
+    mockUserFindUnique: vi.fn(),
+    mockGameFindUnique: vi.fn(),
+    mockGameFindMany: vi.fn(),
     mockTransaction: vi.fn(),
     mockGameCreate: vi.fn(),
     mockGamePlayerCreate: vi.fn(),
@@ -41,7 +47,8 @@ vi.mock("@clerk/express", () => ({
 
 vi.mock("../lib/prisma.js", () => ({
     prisma: {
-        user: { upsert: mockUserUpsert },
+        user: { upsert: mockUserUpsert, findUnique: mockUserFindUnique },
+        game: { findUnique: mockGameFindUnique, findMany: mockGameFindMany },
         $transaction: mockTransaction,
     },
 }));
@@ -72,6 +79,7 @@ beforeEach(() => {
     vi.clearAllMocks();
 
     mockUserUpsert.mockResolvedValue({ id: "db-user-uuid" });
+    mockGameFindUnique.mockResolvedValue(null);
     mockGameCreate.mockResolvedValue({ id: "game-uuid" });
     mockGamePlayerCreate.mockResolvedValue({ id: "player-uuid", port: 1 });
     mockComboCreate.mockResolvedValue({ id: "combo-uuid" });
@@ -137,6 +145,22 @@ describe("POST /replays", () => {
             .expect(400, { error: "userConnectCode is required" });
     });
 
+    it("returns 409 when the same file has already been uploaded by this user", async () => {
+        mockGameFindUnique.mockResolvedValue({ id: "existing-game-uuid" });
+
+        const response = await supertest(app)
+            .post("/replays")
+            .set("Authorization", "Bearer test-token")
+            .field("userConnectCode", "TEST#001")
+            .attach("file", VALID_SLP_BUFFER, "game.slp")
+            .expect(409);
+
+        expect(response.body).toEqual({
+            error: "This replay has already been uploaded",
+            gameId: "existing-game-uuid",
+        });
+    });
+
     it("returns 422 when userConnectCode does not match any player in the replay", async () => {
         await supertest(app)
             .post("/replays")
@@ -164,5 +188,64 @@ describe("POST /replays", () => {
                 { port: 2, character: "Falco", connectCode: "OPPE#123", isUser: false },
             ],
         });
+    });
+});
+
+describe("GET /replays", () => {
+    it("returns 401 when no Authorization header is provided", async () => {
+        await supertest(app).get("/replays").expect(401);
+    });
+
+    it("returns 200 with empty array when user has no DB record", async () => {
+        mockUserFindUnique.mockResolvedValue(null);
+
+        await supertest(app)
+            .get("/replays")
+            .set("Authorization", "Bearer test-token")
+            .expect(200, []);
+    });
+
+    it("returns 200 with empty array when user has no games", async () => {
+        mockUserFindUnique.mockResolvedValue({ id: "db-user-uuid" });
+        mockGameFindMany.mockResolvedValue([]);
+
+        await supertest(app)
+            .get("/replays")
+            .set("Authorization", "Bearer test-token")
+            .expect(200, []);
+    });
+
+    it("returns 200 with games in correct shape", async () => {
+        mockUserFindUnique.mockResolvedValue({ id: "db-user-uuid" });
+        mockGameFindMany.mockResolvedValue([
+            {
+                id: "game-uuid",
+                stage: "Battlefield",
+                duration: 4800,
+                playedAt: new Date("2026-01-01T00:00:00.000Z"),
+                players: [
+                    { character: "Fox", connectCode: "TEST#001", isUser: true, endStocks: 2, endPercent: 45.5 },
+                    { character: "Falco", connectCode: "OPPE#123", isUser: false, endStocks: 0, endPercent: 134.2 },
+                ],
+            },
+        ]);
+
+        const response = await supertest(app)
+            .get("/replays")
+            .set("Authorization", "Bearer test-token")
+            .expect(200);
+
+        expect(response.body).toEqual([
+            {
+                id: "game-uuid",
+                stage: "Battlefield",
+                duration: 4800,
+                playedAt: "2026-01-01T00:00:00.000Z",
+                players: [
+                    { character: "Fox", connectCode: "TEST#001", isUser: true, endStocks: 2, endPercent: 45.5 },
+                    { character: "Falco", connectCode: "OPPE#123", isUser: false, endStocks: 0, endPercent: 134.2 },
+                ],
+            },
+        ]);
     });
 });

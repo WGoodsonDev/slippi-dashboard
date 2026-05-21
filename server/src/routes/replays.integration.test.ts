@@ -145,4 +145,59 @@ describe.skipIf(!process.env.DATABASE_URL)("POST /replays — pipeline integrati
             expect(positionSamples.length).toBeGreaterThan(0);
         });
     });
+
+    describe("duplicate upload handling", () => {
+        it("returns 409 with the existing gameId when the same file is uploaded again", async () => {
+            const response = await supertest(app)
+                .post("/replays")
+                .set("Authorization", "Bearer test-token")
+                .field("userConnectCode", USER_CONNECT_CODE)
+                .attach("file", FIXTURE_BUFFER, "OptimalGenerousSparrow.slp")
+                .expect(409);
+
+            expect(response.body).toEqual({
+                error: "This replay has already been uploaded",
+                gameId,
+            });
+        });
+    });
+
+    describe("GET /replays", () => {
+        it("returns the uploaded game in the list", async () => {
+            const response = await supertest(app)
+                .get("/replays")
+                .set("Authorization", "Bearer test-token")
+                .expect(200);
+
+            expect(response.body).toHaveLength(1);
+            expect(response.body[0].id).toBe(gameId);
+        });
+
+        it("returns game metadata in the correct shape", async () => {
+            const response = await supertest(app)
+                .get("/replays")
+                .set("Authorization", "Bearer test-token")
+                .expect(200);
+
+            const game = response.body[0];
+            expect(game.stage).toBe("Dream Land N64");
+            expect(typeof game.duration).toBe("number");
+            expect(typeof game.playedAt).toBe("string");
+            expect(game.players).toHaveLength(2);
+        });
+
+        it("returns players with correct connect codes and isUser flag", async () => {
+            const response = await supertest(app)
+                .get("/replays")
+                .set("Authorization", "Bearer test-token")
+                .expect(200);
+
+            const players = response.body[0].players;
+            const userPlayer = players.find((p: { isUser: boolean }) => p.isUser);
+            const opponent = players.find((p: { isUser: boolean }) => !p.isUser);
+
+            expect(userPlayer.connectCode).toBe(USER_CONNECT_CODE);
+            expect(opponent.connectCode).toBe("ACAB#000");
+        });
+    });
 });
