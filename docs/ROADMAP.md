@@ -93,6 +93,7 @@ S3 URL + game record linked in DB
 - [x] S3 bucket configured, file upload endpoint working
 - [x] slippi-js installed and parsing pipeline functional
 - [x] Gamestate detection logic implemented (v1 rules)
+- [x] Combo and ComboHit pipeline
 - [ ] Full Prisma schema migrated and seeded with test data
 - [ ] API endpoints: `POST /replays`, `GET /replays`
 - [ ] Integration tests covering upload → parse → store pipeline
